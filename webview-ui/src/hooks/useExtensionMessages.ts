@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { HooksConsentRequest } from '../../../core/src/messages.js';
+import type { HooksConsentRequest, SessionDetails } from '../../../core/src/messages.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import type { ExistingAgentMeta, PendingAgent } from '../office/engine/existingAgents.js';
 import { reconcileExistingAgents } from '../office/engine/existingAgents.js';
@@ -73,6 +73,11 @@ interface ExtensionMessageState {
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
   agentStatuses: Record<number, string>;
+  agentDetails: Record<number, SessionDetails>;
+  canLaunchAgent: boolean;
+  terminalControls: boolean;
+  terminalResult: { success: boolean; message: string } | null;
+  clearTerminalResult: () => void;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
   subagentCharacters: SubagentCharacter[];
   layoutReady: boolean;
@@ -90,6 +95,7 @@ interface ExtensionMessageState {
   ghostHeadlessAgents: boolean;
   setGhostHeadlessAgents: (v: boolean) => void;
   hooksEnabled: boolean;
+  hookProviderIds: string[];
   setHooksEnabled: (v: boolean) => void;
   /** Actual install state per provider (hooksStatus messages) — absent/false
    *  while first-run consent is pending, unlike hooksEnabled which defaults
@@ -125,6 +131,13 @@ export function useExtensionMessages(
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({});
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({});
+  const [agentDetails, setAgentDetails] = useState<Record<number, SessionDetails>>({});
+  const [canLaunchAgent, setCanLaunchAgent] = useState(!isBrowserRuntime);
+  const [terminalControls, setTerminalControls] = useState(false);
+  const [terminalResult, setTerminalResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
   const [subagentTools, setSubagentTools] = useState<
     Record<number, Record<string, ToolActivity[]>>
   >({});
@@ -143,6 +156,7 @@ export function useExtensionMessages(
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [ghostHeadlessAgents, setGhostHeadlessAgentsState] = useState(false);
   const [hooksEnabled, setHooksEnabled] = useState(true);
+  const [hookProviderIds, setHookProviderIds] = useState<string[]>(['claude']);
   const [hooksInstalled, setHooksInstalled] = useState<Record<string, boolean>>({});
   const [hooksStatusSeq, setHooksStatusSeq] = useState<Record<string, number>>({});
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
@@ -208,6 +222,9 @@ export function useExtensionMessages(
       }
 
       if (msg.type === 'providerCapabilities') {
+        if (typeof msg.canLaunchAgent === 'boolean') setCanLaunchAgent(msg.canLaunchAgent);
+        if (typeof msg.terminalControls === 'boolean') setTerminalControls(msg.terminalControls);
+        setHookProviderIds(msg.hookProviderIds ?? ['claude']);
         setProviderCapabilities({
           readingTools: msg.readingTools,
           subagentToolNames: msg.subagentToolNames,
@@ -215,7 +232,9 @@ export function useExtensionMessages(
         return;
       }
 
-      if (msg.type === 'layoutLoaded') {
+      if (msg.type === 'terminalActionResult') {
+        setTerminalResult({ success: msg.success === true, message: String(msg.message) });
+      } else if (msg.type === 'layoutLoaded') {
         // Skip external layout updates while editor has unsaved changes
         if (layoutReadyRef.current && isEditDirty?.()) {
           console.log('[Webview] Skipping external layout update — editor has unsaved changes');
@@ -294,6 +313,11 @@ export function useExtensionMessages(
         const id = msg.id as number;
         setAgents((prev) => prev.filter((a) => a !== id));
         setSelectedAgent((prev) => (prev === id ? null : prev));
+        setAgentDetails((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
         setAgentTools((prev) => {
           if (!(id in prev)) return prev;
           const next = { ...prev };
@@ -354,6 +378,10 @@ export function useExtensionMessages(
           }
           return merged.sort((a, b) => a - b);
         });
+      } else if (msg.type === 'agentDetails') {
+        const id = msg.id as number;
+        const details = msg.details as SessionDetails;
+        setAgentDetails((prev) => ({ ...prev, [id]: details }));
       } else if (msg.type === 'agentToolStart') {
         const id = msg.id as number;
         const toolId = msg.toolId as string;
@@ -552,14 +580,17 @@ export function useExtensionMessages(
           const newSubId = subId;
           setSubagentCharacters((prev) => {
             if (prev.some((s) => s.id === newSubId)) return prev;
-            return [...prev, { id: newSubId, parentAgentId: id, parentToolId, label: '' }];
+            return [
+              ...prev,
+              { id: newSubId, parentAgentId: id, parentToolId, label: msg.label ?? '' },
+            ];
           });
           // Only watched background spawns are created lazily -- mark the
           // parent tool as background so agentToolsClear preserves the sub.
           const set = (backgroundParentToolIdsRef.current[id] ??= new Set());
           set.add(parentToolId);
         }
-        const subToolName = extractToolName(status);
+        const subToolName = msg.toolName ?? extractToolName(status);
         os.setAgentTool(subId, subToolName);
         os.setAgentActive(subId, true);
       } else if (msg.type === 'subagentToolDone') {
@@ -763,6 +794,11 @@ export function useExtensionMessages(
     selectedAgent,
     agentTools,
     agentStatuses,
+    agentDetails,
+    canLaunchAgent,
+    terminalControls,
+    terminalResult,
+    clearTerminalResult: () => setTerminalResult(null),
     subagentTools,
     subagentCharacters,
     layoutReady,
@@ -779,6 +815,7 @@ export function useExtensionMessages(
     ghostHeadlessAgents,
     setGhostHeadlessAgents: applyGhostHeadlessAgents,
     hooksEnabled,
+    hookProviderIds,
     hooksInstalled,
     hooksStatusSeq,
     setHooksEnabled,

@@ -40,6 +40,8 @@ const EMPTY_STATE: AdapterState = { agents: [], seats: {} };
 
 export interface FileStateAdapterOptions {
   namespace: ConfigNamespace;
+  /** Keep a provider-specific office's agent IDs and seats separate from Claude's. */
+  stateNamespace?: ConfigNamespace | 'copilot' | 'vscode-copilot';
 }
 
 export class FileStateAdapter implements StateAdapter {
@@ -51,7 +53,7 @@ export class FileStateAdapter implements StateAdapter {
     this.stateFilePath = path.join(
       os.homedir(),
       LAYOUT_FILE_DIR,
-      `${options.namespace}-state.json`,
+      `${options.stateNamespace ?? options.namespace}-state.json`,
     );
   }
 

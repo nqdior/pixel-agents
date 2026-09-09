@@ -45,6 +45,7 @@ export interface HttpServerOptions {
   onSetHooksEnabled?: SetHooksEnabledSideEffect;
   /** Invoked when an external asset directory is added/removed. Standalone reloads + re-broadcasts assets here. */
   onReloadAssets?: ReloadAssetsSideEffect;
+  onTerminalAction?: import('./clientMessageHandler.js').TerminalAction;
 }
 
 /** Result of createHttpServer(). */
@@ -210,6 +211,7 @@ function registerWebSocketRoute(app: FastifyInstance, options: HttpServerOptions
           cache: options.assetCache ?? null,
           onSetHooksEnabled: options.onSetHooksEnabled,
           onReloadAssets: options.onReloadAssets,
+          onTerminalAction: options.onTerminalAction,
           privileged,
         });
       } catch {

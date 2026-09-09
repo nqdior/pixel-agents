@@ -19,6 +19,11 @@ import { hooksConsentRequest } from './providers/hook/consentGate.js';
 import { claudeProvider, hookProviderById, hookProviders } from './providers/index.js';
 
 type WsSend = (message: Record<string, unknown>) => void;
+export type TerminalAction = (
+  action: 'launch' | 'open' | 'focus',
+  id?: number,
+  folderPath?: string,
+) => Promise<void>;
 
 /** Async hook toggle side effect (install/uninstall + script copy). Provided by cli.ts. */
 export type SetHooksEnabledSideEffect = (
@@ -52,6 +57,8 @@ export interface ClientMessageContext {
   onSetHooksEnabled?: SetHooksEnabledSideEffect;
   /** Reload assets after an external-asset-directory change. Needs the dist root, known only to cli.ts. */
   onReloadAssets?: ReloadAssetsSideEffect;
+  onTerminalAction?: TerminalAction;
+  settingsNamespace?: 'standalone' | 'vscode';
   /**
    * Whether this client may send messages that reach OUTSIDE `~/.pixel-agents/`
    * — today only `setHooksEnabled`, which grants machine-wide consent to modify
@@ -91,6 +98,54 @@ export function handleClientMessage(
       handleWebviewReady(send, ctx);
       break;
 
+    case 'launchAgent':
+    case 'openAgentTerminal':
+    case 'focusAgent': {
+      if (!ctx.onTerminalAction) break;
+      if (!ctx.privileged) {
+        send({
+          type: 'terminalActionResult',
+          success: false,
+          message:
+            'Terminal controls require the private local URL printed by the office launcher.',
+        });
+        break;
+      }
+      if (
+        msg.bypassPermissions === true ||
+        (msg.folderPath !== undefined && typeof msg.folderPath !== 'string') ||
+        (msg.type !== 'launchAgent' && (typeof msg.id !== 'number' || !Number.isInteger(msg.id)))
+      ) {
+        send({
+          type: 'terminalActionResult',
+          success: false,
+          message: 'Invalid terminal request. Permission bypass is not supported.',
+        });
+        break;
+      }
+      const action =
+        msg.type === 'launchAgent' ? 'launch' : msg.type === 'openAgentTerminal' ? 'open' : 'focus';
+      void ctx
+        .onTerminalAction(
+          action,
+          typeof msg.id === 'number' ? msg.id : undefined,
+          typeof msg.folderPath === 'string' ? msg.folderPath : undefined,
+        )
+        .then(() => {
+          send({
+            type: 'terminalActionResult',
+            success: true,
+            message: action === 'focus' ? 'Terminal focused.' : 'Copilot terminal opened.',
+          });
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('[Pixel Agents] Terminal action failed:', message);
+          send({ type: 'terminalActionResult', success: false, message });
+        });
+      break;
+    }
+
     case 'closeAgent': {
       // Standalone agents are always external (no terminal), so mirror the VS
       // Code external-agent branch: dismiss the file (so the external scanner
@@ -99,7 +154,7 @@ export function handleClientMessage(
       const id = msg.id as number;
       const agent = store.get(id);
       if (agent && runtime) {
-        runtime.dismissalTracker.dismiss(agent.jsonlFile);
+        if (agent.leadAgentId === undefined) runtime.dismissalTracker.dismiss(agent.jsonlFile);
         runtime.removeAgent(id);
       }
       break;
@@ -183,7 +238,9 @@ export function handleClientMessage(
       const enabled = msg.enabled as boolean;
       // The provider id is echoed by the client, never originated: an unknown
       // id names nothing to install into, so it is dropped like a junk choice.
-      const provider = hookProviderById(msg.providerId);
+      const provider = runtime
+        ? runtime.hookProviders.find((candidate) => candidate.id === msg.providerId)
+        : hookProviderById(msg.providerId);
       if (!provider) break;
       if (!ctx.privileged) {
         // No server token on this connection: the toggle would grant durable
@@ -215,7 +272,9 @@ export function handleClientMessage(
       }
       // Fail-closed on the provider exactly like on the choice: an id naming
       // no registered provider writes nothing.
-      const provider = hookProviderById(msg.providerId);
+      const provider = runtime
+        ? runtime.hookProviders.find((candidate) => candidate.id === msg.providerId)
+        : hookProviderById(msg.providerId);
       if (!provider) break;
       void applyConsentChoice(
         provider.id,
@@ -259,7 +318,10 @@ export function handleClientMessage(
         break;
       }
       const cfg = readConfig();
-      cfg.standalone.areaMappings = rawMappings as Record<string, string[]>;
+      cfg[ctx.settingsNamespace ?? 'standalone'].areaMappings = rawMappings as Record<
+        string,
+        string[]
+      >;
       writeConfig(cfg);
       break;
     }
@@ -361,9 +423,13 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
 
   // 1. Provider capabilities (must arrive before any agent messages)
   send({
-    type: 'providerCapabilities',
-    readingTools: [...claudeProvider.readingTools],
-    subagentToolNames: [...claudeProvider.subagentToolNames],
+    ...(runtime?.getProviderCapabilities() ?? {
+      type: 'providerCapabilities',
+      readingTools: [...claudeProvider.readingTools],
+      subagentToolNames: [...claudeProvider.subagentToolNames],
+    }),
+    canLaunchAgent: !!ctx.onTerminalAction && ctx.privileged === true,
+    terminalControls: !!ctx.onTerminalAction && ctx.privileged === true,
   });
 
   // 2. Assets (from server cache, loaded at startup via pngjs)
@@ -404,11 +470,15 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
 
   // 4. Settings (from adapter, with sensible defaults when adapter is absent)
   const cfg = readConfig();
-  const watchAllSessions = adapter?.getSetting(KEY_WATCH_ALL_SESSIONS, false) ?? false;
+  const watchAllSessions =
+    runtime?.watchAllSessions.current ??
+    adapter?.getSetting(KEY_WATCH_ALL_SESSIONS, false) ??
+    false;
   // settingsLoaded.hooksEnabled stays a single boolean carrying the CLAUDE
   // provider's preference until the Settings UI grows a per-provider list —
   // its sole webview reader is the hooks tooltip gate.
-  const hooksEnabled = getHooksEnabled(claudeProvider.id);
+  const enabledHookProviders = runtime?.hookProviders ?? hookProviders;
+  const hooksEnabled = enabledHookProviders.some((provider) => getHooksEnabled(provider.id));
   const showAreas = adapter?.getSetting(KEY_SHOW_AREAS, false) ?? false;
   send({
     type: 'settingsLoaded',
@@ -429,7 +499,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   // provider checks are async, so these land as follow-ups right after the
   // synchronous handshake; the webview's default (not installed) is the safe
   // assumption until each arrives. One status + at most one ask PER PROVIDER.
-  for (const provider of hookProviders) {
+  for (const provider of enabledHookProviders) {
     // One provider's unreadable settings file must degrade to
     // installed=false (matching the executor's fail-closed read: no choice
     // ever uninstalls on a guess) rather than surface as an unhandled
@@ -464,7 +534,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   // webview seat-preference logic has the dict when characters are created).
   send({
     type: 'areaMappingsLoaded',
-    mappings: cfg.standalone.areaMappings ?? {},
+    mappings: cfg[ctx.settingsNamespace ?? 'standalone'].areaMappings ?? {},
   });
 
   // Sync runtime refs with the persisted settings so scanners behave correctly

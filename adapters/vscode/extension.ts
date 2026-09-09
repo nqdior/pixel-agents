@@ -4,13 +4,16 @@ import { FileStateAdapter } from '../../server/src/fileStateAdapter.js';
 import {
   COMMAND_EXPORT_DEFAULT_LAYOUT,
   COMMAND_SHOW_PANEL,
+  COMMAND_START_COPILOT,
+  CONFIG_KEY_AGENT_PROVIDER,
   CONFIG_KEY_AUTO_SHOW_PANEL,
   VIEW_ID,
 } from './constants.js';
+import { CopilotViewProvider } from './CopilotViewProvider.js';
 import { migrateVsCodeState } from './migrateVsCodeState.js';
 import { PixelAgentsViewProvider } from './PixelAgentsViewProvider.js';
 
-let providerInstance: PixelAgentsViewProvider | undefined;
+let providerInstance: PixelAgentsViewProvider | CopilotViewProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
   console.log(`[Pixel Agents] PIXEL_AGENTS_DEBUG=${process.env.PIXEL_AGENTS_DEBUG ?? 'not set'}`);
@@ -22,10 +25,30 @@ export function activate(context: vscode.ExtensionContext) {
   // activate. Warns until all keys are cleared (e.g. if a disk error blocks writes).
   migrateVsCodeState(context, adapter);
 
-  const provider = new PixelAgentsViewProvider(context, adapter);
+  const copilot =
+    vscode.workspace.getConfiguration().get<string>(CONFIG_KEY_AGENT_PROVIDER, 'claude') ===
+    'copilot';
+  const provider = copilot
+    ? new CopilotViewProvider(context)
+    : new PixelAgentsViewProvider(context, adapter);
   providerInstance = provider;
 
   context.subscriptions.push(vscode.window.registerWebviewViewProvider(VIEW_ID, provider));
+  context.subscriptions.push(
+    vscode.commands.registerCommand(COMMAND_START_COPILOT, async () => {
+      if (copilot) {
+        await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+        return;
+      }
+      await vscode.workspace
+        .getConfiguration()
+        .update(CONFIG_KEY_AGENT_PROVIDER, 'copilot', vscode.ConfigurationTarget.Global);
+      await vscode.workspace
+        .getConfiguration()
+        .update(CONFIG_KEY_AUTO_SHOW_PANEL, true, vscode.ConfigurationTarget.Global);
+      await vscode.commands.executeCommand('workbench.action.reloadWindow');
+    }),
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand(COMMAND_SHOW_PANEL, () => {

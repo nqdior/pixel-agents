@@ -86,6 +86,8 @@ components:
         - $ref: '#/components/schemas/ExistingAgents'
         # Agent status / tool activity
         - $ref: '#/components/schemas/AgentStatus'
+        - $ref: '#/components/schemas/AgentDetails'
+        - $ref: '#/components/schemas/TerminalActionResult'
         - $ref: '#/components/schemas/AgentToolStart'
         - $ref: '#/components/schemas/AgentToolDone'
         - $ref: '#/components/schemas/AgentToolsClear'
@@ -125,6 +127,7 @@ components:
         - $ref: '#/components/schemas/WebviewReady'
         - $ref: '#/components/schemas/LaunchAgent'
         - $ref: '#/components/schemas/FocusAgent'
+        - $ref: '#/components/schemas/OpenAgentTerminal'
         - $ref: '#/components/schemas/CloseAgent'
         - $ref: '#/components/schemas/SaveAgentSeats'
         - $ref: '#/components/schemas/SaveLayout'
@@ -150,7 +153,8 @@ components:
 
     ProviderCapabilities:
       description: |
-        Sent once after `webviewReady`, before any agent messages. Tells the client
+        Sent after `webviewReady`, before any agent messages, and when a file
+        provider discovers additional tool names. Tells the client
         which tool names should render with the "reading" animation and which spawn
         sub-agent characters.
       type: object
@@ -169,6 +173,37 @@ components:
           items:
             type: string
           description: Tool names that spawn sub-agent characters (e.g. Task, Agent).
+        hookProviderIds:
+          type: array
+          items:
+            type: string
+          description: Enabled hook providers. Empty for a read-only file-provider office.
+        canLaunchAgent:
+          type: boolean
+        terminalControls:
+          type: boolean
+
+    TerminalActionResult:
+      type: object
+      additionalProperties: false
+      required: [type, success, message]
+      properties:
+        type:
+          const: terminalActionResult
+        success:
+          type: boolean
+        message:
+          type: string
+
+    OpenAgentTerminal:
+      type: object
+      additionalProperties: false
+      required: [type, id]
+      properties:
+        type:
+          const: openAgentTerminal
+        id:
+          type: integer
 
     AgentCreated:
       description: A new agent has appeared in the office.
@@ -267,6 +302,99 @@ components:
       type: string
       enum: [active, waiting]
 
+    AgentDetails:
+      description: Bounded local session details, refreshed when activity changes.
+      type: object
+      additionalProperties: false
+      required: [type, id, details]
+      properties:
+        type:
+          const: agentDetails
+        id:
+          type: integer
+        details:
+          $ref: '#/components/schemas/SessionDetails'
+
+    SessionDetails:
+      type: object
+      additionalProperties: false
+      required: [sessionId, cwd, status, tools, recentTools, lastActivityAt]
+      properties:
+        sessionId:
+          type: string
+        cwd:
+          type: string
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/SessionActivityStatus'
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionTool'
+        recentTools:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionTool'
+        lastActivityAt:
+          type: number
+        latestRequest:
+          $ref: '#/components/schemas/SessionMessage'
+        latestResponse:
+          $ref: '#/components/schemas/SessionMessage'
+        context:
+          $ref: '#/components/schemas/SessionContextUsage'
+
+    SessionContextUsage:
+      type: object
+      additionalProperties: false
+      required: [usedTokens, maxTokens]
+      properties:
+        usedTokens:
+          type: number
+        maxTokens:
+          type: number
+        model:
+          type: string
+
+    SessionTool:
+      type: object
+      additionalProperties: false
+      required: [id, name, status, isReading]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        isReading:
+          type: boolean
+        details:
+          type: string
+        outcome:
+          $ref: '#/components/schemas/SessionToolOutcome'
+
+    SessionActivityStatus:
+      type: string
+      enum: [active, done, input, permission]
+
+    SessionToolOutcome:
+      type: string
+      enum: [done, error]
+
+    SessionMessage:
+      type: object
+      additionalProperties: false
+      required: [content, timestamp, truncated]
+      properties:
+        content:
+          type: string
+        timestamp:
+          type: string
+        truncated:
+          type: boolean
+
     AgentToolStart:
       description: Agent began executing a tool.
       type: object
@@ -356,6 +484,10 @@ components:
         toolId:
           type: string
         status:
+          type: string
+        label:
+          type: string
+        toolName:
           type: string
 
     SubagentToolDone:

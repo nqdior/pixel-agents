@@ -8,6 +8,7 @@ import { DebugView } from './components/DebugView.js';
 import { EditActionBar } from './components/EditActionBar.js';
 import { IntroBubble } from './components/IntroBubble.js';
 import { MigrationNotice } from './components/MigrationNotice.js';
+import { SessionDetailsPanel } from './components/SessionDetailsPanel.js';
 import { SettingsModal } from './components/SettingsModal.js';
 import { Tooltip } from './components/Tooltip.js';
 import { Modal } from './components/ui/Modal.js';
@@ -71,6 +72,11 @@ function App() {
     selectedAgent,
     agentTools,
     agentStatuses,
+    agentDetails,
+    canLaunchAgent,
+    terminalControls,
+    terminalResult,
+    clearTerminalResult,
     subagentTools,
     subagentCharacters,
     layoutReady,
@@ -87,6 +93,7 @@ function App() {
     ghostHeadlessAgents,
     setGhostHeadlessAgents,
     hooksEnabled,
+    hookProviderIds,
     hooksInstalled,
     hooksStatusSeq,
     hooksInfoShown,
@@ -108,6 +115,7 @@ function App() {
   const [hooksTooltipDismissed, setHooksTooltipDismissed] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [alwaysShowOverlay, setAlwaysShowOverlay] = useState(false);
+  const [detailsAgentId, setDetailsAgentId] = useState<number | null>(null);
 
   const currentMajorMinor = toMajorMinor(extensionVersion);
 
@@ -237,7 +245,7 @@ function App() {
     const os = getOfficeState();
     const meta = os.subagentMeta.get(agentId);
     const focusId = meta ? meta.parentAgentId : agentId;
-    transport.send({ type: 'focusAgent', id: focusId });
+    if (!isBrowserRuntime) transport.send({ type: 'focusAgent', id: focusId });
   }, []);
 
   const officeState = getOfficeState();
@@ -336,6 +344,10 @@ function App() {
       <OfficeCanvas
         officeState={officeState}
         onClick={handleClick}
+        onSelectionChange={(id) => {
+          const meta = id === null ? undefined : officeState.subagentMeta.get(id);
+          setDetailsAgentId(meta?.parentAgentId ?? id);
+        }}
         isEditMode={editor.isEditMode}
         editorState={editorState}
         onEditorTileAction={editor.handleEditorTileAction}
@@ -437,6 +449,23 @@ function App() {
             onCloseAgent={handleCloseAgent}
             alwaysShowOverlay={alwaysShowOverlay}
           />
+          {!editor.isEditMode && (
+            <SessionDetailsPanel
+              sessions={agentDetails}
+              terminalControls={terminalControls}
+              selectedId={detailsAgentId}
+              onSelect={(id) => {
+                setDetailsAgentId(id);
+                officeState.selectedAgentId = id;
+                officeState.cameraFollowId = id;
+              }}
+              onClose={() => {
+                setDetailsAgentId(null);
+                officeState.selectedAgentId = null;
+                officeState.cameraFollowId = null;
+              }}
+            />
+          )}
         </>
       ) : (
         <DebugView
@@ -518,7 +547,20 @@ function App() {
         isSettingsOpen={isSettingsOpen}
         onToggleSettings={() => setIsSettingsOpen((v) => !v)}
         workspaceFolders={workspaceFolders}
+        canLaunchAgent={canLaunchAgent}
+        canBypassPermissions={hookProviderIds.includes('claude')}
       />
+      {terminalResult && (
+        <div
+          className="absolute bottom-64 right-8 z-45 bg-bg border-2 border-border shadow-pixel p-12 max-w-sm max-h-64 overflow-auto"
+          role={terminalResult.success ? 'status' : 'alert'}
+        >
+          <p className="text-sm break-words">{terminalResult.message}</p>
+          <button className="text-xs text-accent-bright mt-8" onClick={clearTerminalResult}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <VersionIndicator
         currentVersion={extensionVersion}
@@ -552,6 +594,7 @@ function App() {
           transport.send({ type: 'setWatchAllSessions', enabled: newVal });
         }}
         hooksInstalled={claudeHooksInstalled}
+        hooksAvailable={hookProviderIds.includes('claude')}
         onToggleHooksEnabled={() => {
           // Toggle the DISPLAYED state (actual install), not the preference: when the two disagree — preference on,
           // nothing installed while consent is pending — toggling the preference would turn hooks OFF for a user

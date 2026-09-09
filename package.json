@@ -1,7 +1,7 @@
 {
   "name": "pixel-agents",
   "displayName": "Pixel Agents",
-  "description": "Pixel art office where your Claude Code agents come to life as animated characters",
+  "description": "Pixel art office for Claude Code and GitHub Copilot CLI agents (local Copilot edition)",
   "version": "1.4.1",
   "publisher": "pablodelucca",
   "repository": {
@@ -45,6 +45,10 @@
   "contributes": {
     "commands": [
       {
+        "command": "pixel-agents.startCopilotOffice",
+        "title": "Pixel Agents: Start Copilot Office"
+      },
+      {
         "command": "pixel-agents.showPanel",
         "title": "Pixel Agents: Show Panel"
       },
@@ -74,6 +78,17 @@
     "configuration": {
       "title": "Pixel Agents",
       "properties": {
+        "pixel-agents.agentProvider": {
+          "type": "string",
+          "enum": ["claude", "copilot"],
+          "default": "claude",
+          "description": "Coding-agent integration. Reload the window after changing this setting."
+        },
+        "pixel-agents.watchAllCopilotSessions": {
+          "type": "boolean",
+          "default": false,
+          "description": "Start the Copilot office with sessions from every working directory visible. The in-office toggle can change visibility until reload."
+        },
         "pixel-agents.autoShowPanel": {
           "type": "boolean",
           "default": false,

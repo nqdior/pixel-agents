@@ -27,6 +27,8 @@ import {
 } from './configPersistence.js';
 import { MAX_PORT, MIN_PORT } from './constants.js';
 import { FileStateAdapter } from './fileStateAdapter.js';
+import { NativeCopilotTerminals } from './nativeCopilotTerminals.js';
+import { CopilotProvider } from './providers/file/copilot/copilot.js';
 import { claudeProvider, copyHookScript, hookProviderById } from './providers/index.js';
 import { PixelAgentsServer } from './server.js';
 
@@ -37,6 +39,10 @@ export interface CliArgs {
    *  can run at once without a collision. --port picks a fixed one. */
   port?: number;
   host: string;
+  copilot?: boolean;
+  watchAllSessions?: boolean;
+  terminalControls?: boolean;
+  noReuse?: boolean;
 }
 
 /** Thrown by parseArgs on an invalid --port. Kept separate from process.exit so
@@ -65,16 +71,30 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (argv[i] === '--host' && argv[i + 1]) {
       args.host = argv[i + 1];
       i++;
+    } else if (argv[i] === '--copilot') {
+      args.copilot = true;
+    } else if (argv[i] === '--watch-all-sessions') {
+      args.watchAllSessions = true;
+    } else if (argv[i] === '--terminal-controls') {
+      args.terminalControls = true;
+    } else if (argv[i] === '--no-reuse') {
+      args.noReuse = true;
     } else if (argv[i] === '--help') {
       console.log(`Usage: pixel-agents [options]
 
 Options:
   --port, -p <number>   Port to listen on (default: OS-assigned ephemeral port)
   --host <string>       Host to bind to (default: 127.0.0.1)
+  --copilot             Read-only GitHub Copilot CLI office (no Claude hooks)
+  --watch-all-sessions  Include live sessions from every working directory
+  --terminal-controls   Enable operator-approved native Copilot terminal actions
+  --no-reuse            Start a new server; the launcher handles compatible reuse
   --help                Show this help message`);
       process.exit(0);
     }
   }
+  if (args.terminalControls && !args.copilot)
+    throw new CliArgsError('--terminal-controls requires --copilot.');
   return args;
 }
 
@@ -135,7 +155,10 @@ async function main(): Promise<void> {
 
   // ── Store + adapter (shared settings + standalone-scoped agents/seats) ──
   const store = new AgentStateStore();
-  const adapter = new FileStateAdapter({ namespace: 'standalone' });
+  const adapter = new FileStateAdapter({
+    namespace: 'standalone',
+    stateNamespace: args.copilot ? 'copilot' : undefined,
+  });
   store.setAdapter(adapter);
 
   // ── Create server ──
@@ -143,7 +166,13 @@ async function main(): Promise<void> {
 
   try {
     // Create runtime first (before server.start, so we can pass it in)
-    const runtime = new AgentRuntime(store, claudeProvider);
+    const runtime = new AgentRuntime(store, claudeProvider, {
+      hookProviders: args.copilot ? [] : undefined,
+    });
+    runtime.hooksEnabled.current = !args.copilot && getHooksEnabled(claudeProvider.id);
+    runtime.watchAllSessions.current =
+      args.watchAllSessions ?? adapter.getSetting('pixel-agents.watchAllSessions', false);
+    const terminals = args.terminalControls ? new NativeCopilotTerminals() : undefined;
 
     // Wire hook events: HTTP POST -> runtime -> hookEventHandler -> agents
     server.onHookEvent((providerId, event) => {
@@ -228,6 +257,7 @@ async function main(): Promise<void> {
     };
 
     const config = await server.start({
+      reuseExisting: !args.noReuse,
       store,
       runtime,
       embedded: false,
@@ -237,15 +267,29 @@ async function main(): Promise<void> {
       assetCache,
       onSetHooksEnabled,
       onReloadAssets,
+      onTerminalAction: terminals
+        ? async (action, id, folderPath) => {
+            if (action === 'launch') {
+              await terminals.open(folderPath ?? process.cwd());
+              return;
+            }
+            let agent = id === undefined ? undefined : store.get(id);
+            if (!agent) throw new Error('This session is no longer available.');
+            while (agent.leadAgentId !== undefined) {
+              const parent = store.get(agent.leadAgentId);
+              if (!parent) throw new Error('The parent session is no longer available.');
+              agent = parent;
+            }
+            if (action === 'focus') await terminals.focus(agent.sessionId);
+            else await terminals.open(agent.projectDir, agent.sessionId);
+          }
+        : undefined,
     });
     currentConfig = { port: config.port, token: config.token };
 
     // Sync runtime refs with persisted settings BEFORE first scan tick. The
     // runtime's single hooksEnabled ref follows the Claude provider until the
     // scanners grow per-provider awareness alongside the Settings UI.
-    runtime.hooksEnabled.current = getHooksEnabled(claudeProvider.id);
-    runtime.watchAllSessions.current = adapter.getSetting('pixel-agents.watchAllSessions', false);
-
     // Install hooks on startup if the persisted setting says so — gated on the
     // one-time consent to modify ~/.claude/settings.json.
     if (runtime.hooksEnabled.current) {
@@ -274,7 +318,7 @@ async function main(): Promise<void> {
           console.error(`[Pixel Agents] ${err instanceof Error ? err.message : String(err)}`);
         }
       }
-    } else {
+    } else if (!args.copilot) {
       // Without this line, a persisted hooks-off makes startup skip the entire
       // consent/install flow with zero output — indistinguishable from a bug.
       console.log(
@@ -284,7 +328,11 @@ async function main(): Promise<void> {
 
     // Start scanning for external sessions (Claude running in user's terminal)
     const cwd = process.cwd();
-    const dirs = claudeProvider.getSessionDirs?.(cwd);
+    if (args.copilot) {
+      await runtime.startFileProvider(new CopilotProvider(), [cwd]);
+      console.log('[Pixel Agents] Monitoring live Copilot CLI sessions (read-only, no hooks).');
+    }
+    const dirs = args.copilot ? undefined : claudeProvider.getSessionDirs?.(cwd);
     if (dirs && dirs[0]) {
       const projectDir = dirs[0];
       console.log(`[Pixel Agents] Scanning project dir: ${projectDir}`);

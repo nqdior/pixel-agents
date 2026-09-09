@@ -50,3 +50,17 @@ agent-orchestrator.yaml
 .ao/
 .serena/
 tasks/
+
+# Personal office customizations (kept locally, not part of the public fork)
+/local/
+/pixel-office.bat
+/skills/pixel-office/
+/layouts/
+/scripts/studio-layout.ts
+/scripts/build-studio-layout.ts
+/scripts/install-studio-layout.ts
+/scripts/preview-studio-layout.cjs
+
+# Never include copied session data, control tokens or office backups
+/.copilot/
+/.pixel-agents/

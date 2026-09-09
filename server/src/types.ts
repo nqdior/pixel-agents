@@ -1,5 +1,7 @@
 import type * as vscode from 'vscode';
 
+import type { FileChildSnapshot, FileSessionSnapshot } from '../../core/src/fileProvider.js';
+
 export interface AgentState {
   id: number;
   sessionId: string;
@@ -34,6 +36,11 @@ export interface AgentState {
   hooksOnly?: boolean;
   /** Provider that created this agent (defaults to 'claude') */
   providerId?: string;
+  /** File-provider state is revalidated against live processes, never restored as Claude. */
+  fileProvider?: boolean;
+  awaitingInput?: boolean;
+  details?: FileSessionSnapshot;
+  fileSubagents?: Map<string, FileChildSnapshot>;
   /** Set when SessionEnd(reason=clear) fires; cleared when SessionStart(source=clear) reassigns */
   pendingClear?: boolean;
   /** Hook-generated tool ID for PreToolUse/PostToolUse correlation */

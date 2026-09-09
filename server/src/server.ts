@@ -69,6 +69,8 @@ export class PixelAgentsServer {
     assetCache?: AssetCache;
     onSetHooksEnabled?: SetHooksEnabledSideEffect;
     onReloadAssets?: ReloadAssetsSideEffect;
+    onTerminalAction?: import('./clientMessageHandler.js').TerminalAction;
+    reuseExisting?: boolean;
   }): Promise<ServerConfig> {
     const embedded = options?.embedded ?? true;
     const wantsSpa = !embedded;
@@ -80,7 +82,8 @@ export class PixelAgentsServer {
     // server (blank page). Prune dead entries first so a crashed server's
     // stale file never blocks discovery of a live one.
     const registry = this.readAndPruneRegistry();
-    const candidate = registry.find((e) => e.servesSpa === wantsSpa);
+    const candidate =
+      options?.reuseExisting === false ? undefined : registry.find((e) => e.servesSpa === wantsSpa);
     if (candidate) {
       this.config = candidate;
       this.ownsServer = false;
@@ -106,6 +109,7 @@ export class PixelAgentsServer {
       onHookEvent: (providerId, event) => this.callback?.(providerId, event),
       onSetHooksEnabled: options?.onSetHooksEnabled,
       onReloadAssets: options?.onReloadAssets,
+      onTerminalAction: options?.onTerminalAction,
     });
 
     this.app = app;

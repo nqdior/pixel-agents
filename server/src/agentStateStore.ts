@@ -155,7 +155,7 @@ export class AgentStateStore {
       // Background-spawn children are derived state: the 1s scan re-materializes
       // them from sidecars after a restore. Persisting them would resurrect
       // immortal characters whose completion signal never comes.
-      if (agent.spawnToolUseId) continue;
+      if (agent.spawnToolUseId || agent.fileProvider) continue;
       persisted.push({
         id: agent.id,
         sessionId: agent.sessionId,

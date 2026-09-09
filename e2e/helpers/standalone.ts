@@ -35,6 +35,8 @@ export interface StandaloneSession {
 }
 
 export interface LaunchStandaloneOptions {
+  /** Additional standalone CLI arguments, e.g. a read-only provider selection. */
+  cliArgs?: string[];
   /** Reuse an existing isolated HOME (for cross-surface multi-server tests).
    *  A supplied directory is never removed by standalone cleanup. */
   homeDir?: string;
@@ -101,6 +103,7 @@ function spawnStandaloneHost(args: {
   homeDir: string;
   hostPort: number;
   workspaceDir: string;
+  cliArgs?: string[];
 }): ChildProcessWithoutNullStreams {
   if (!fs.existsSync(STANDALONE_CLI)) {
     throw new Error(
@@ -109,7 +112,14 @@ function spawnStandaloneHost(args: {
   }
   return spawn(
     process.execPath,
-    [STANDALONE_CLI, '--port', args.hostPort.toString(), '--host', '127.0.0.1'],
+    [
+      STANDALONE_CLI,
+      '--port',
+      args.hostPort.toString(),
+      '--host',
+      '127.0.0.1',
+      ...(args.cliArgs ?? []),
+    ],
     {
       cwd: args.workspaceDir,
       env: {
@@ -248,7 +258,12 @@ export async function launchStandalone(
   let hostStdout = '';
   let hostStderr = '';
   function spawnAndAttach(): ChildProcessWithoutNullStreams {
-    const proc = spawnStandaloneHost({ homeDir: tmpHome, hostPort, workspaceDir });
+    const proc = spawnStandaloneHost({
+      homeDir: tmpHome,
+      hostPort,
+      workspaceDir,
+      cliArgs: options.cliArgs,
+    });
     proc.stdout.on('data', (chunk) => {
       hostStdout += chunk.toString();
     });

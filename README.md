@@ -6,6 +6,10 @@
 
 <h2 align="center">The most playful way to orchestrate your agents</h2>
 
+> **Copilot-enabled source fork:** the Marketplace, npm and community links below
+> refer to the upstream Pixel Agents project, not a published release of this fork.
+> Build this checkout to use the Copilot integration.
+
 <div align="center">
 
 [![version](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Fversion.json)](https://github.com/pixel-agents-hq/pixel-agents/releases)
@@ -24,6 +28,186 @@
 <br/>
 
 Pixel Agents turns the AI coding agents running in your terminals into animated pixel-art characters working in a tiny office. They walk to their desks, sit down, type when they're editing files, read when they're searching, and flag you visually when they're stuck waiting for input.
+
+## GitHub Copilot CLI edition
+
+This checkout adds a **Copilot CLI office**. Its monitoring is read-only and adopts already-open
+sessions from the current user's `~/.copilot/session-state/`, including sessions
+started in other terminals and working directories. Claude Code is not required
+in this mode, and neither Copilot nor Claude settings are modified.
+Its agent/seat state uses `~/.pixel-agents/copilot-state.json`, separate from
+the upstream Claude office's `standalone-state.json`.
+
+### Build and run
+
+Clone this fork to any directory, enter its repository root, and use Node.js 22
+(the version in `.nvmrc`). Install and authenticate GitHub Copilot CLI separately.
+
+```sh
+npm ci
+npm run build
+node dist/cli.js --copilot --watch-all-sessions --no-reuse
+```
+
+The server prints a local URL. Keep the terminal running; Ctrl+C stops the
+office, not your Copilot sessions. From another directory, invoke the built
+`dist/cli.js` with its full path. There is no required drive or checkout name.
+
+On **Windows**, an optional PowerShell launcher is available after building.
+Run this from the repository root:
+
+```powershell
+.\start-copilot-office.ps1
+```
+
+The Windows launcher resolves files relative to itself. It opens the private
+control URL, starts on port 56276 with terminal controls, and reuses an
+already-running compatible office without creating another server. Keep the
+console open when it owns the server. Use `-NoBrowser` to print the URL without
+opening an external browser, or `-Port` to select another port:
+
+```powershell
+.\start-copilot-office.ps1 -Port 3100
+```
+
+Use this built checkout, **not** `npx pixel-agents`, which downloads the upstream
+release without this modification. The PowerShell launcher is a source-checkout
+convenience, not part of the npm package's current file allowlist.
+
+### Compatibility and limits
+
+| Component                         | Support                                                                                                                                                                                                               |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser office and session reader | Node-based, uses the current user's home directory. Windows is the exercised environment; macOS/Linux support is not yet verified for this fork.                                                                      |
+| Optional PowerShell launcher      | Windows only: uses `powershell.exe`, `USERPROFILE` and Windows process discovery.                                                                                                                                     |
+| Browser native terminal actions   | Windows only, opt-in for the Node command. Omit `--terminal-controls` on other OSes.                                                                                                                                  |
+| VS Code adapter                   | Requires VS Code 1.105+ and Copilot CLI on the integrated terminal's PATH. Windows is the exercised environment. Remote/WSL windows read sessions on the extension host, not automatically on the local Windows host. |
+| Copilot format                    | Developed against Copilot CLI 1.0.83 session files; see the file contract below. Not a guarantee for all older/future CLI releases.                                                                                   |
+
+The reader expects `~/.copilot/session-state/<session-id>/workspace.yaml`,
+`events.jsonl`, and a live `inuse.<pid>.lock` containing the same PID as its name.
+It reads activity such as `tool.execution_start`, `tool.execution_complete`,
+`assistant.message`, and `subagent.*`. This is an on-disk format dependency, not
+a stable public API. Missing lifecycle records can leave status conservatively
+active; missing context records produce "not reported", never a guessed percentage.
+Session discovery currently uses the default home location; alternate Copilot
+storage roots are not exposed as a launcher option.
+
+Each live session has a character, its Copilot session title, and its project
+folder. Reading, tool execution, thinking, completion, and explicit input/approval
+requests update from the local event log. Process-backed `inuse.<pid>.lock` files
+identify open sessions: idle-but-open sessions remain visible; historical sessions
+and stale locks are excluded. Polling updates approximately once a second.
+The **Watch All Sessions** setting controls cross-directory visibility;
+without `--watch-all-sessions`, discovery starts scoped to the launch directory.
+The launcher enables cross-directory visibility on each start.
+Personal Skills and machine-specific shortcuts are intentionally not distributed.
+No Skill registration is required to run the public launcher.
+
+Hover a character for a concise description of its current action (file name,
+search query, or command description). **Click a character**, or use **Sessions**
+at the top right, to open its live details: full working directory, current tool
+targets and commands, latest request and assistant response, and the last eight
+completed actions with success/failure status. Parallel tool calls appear separately.
+These details also reload when the browser reconnects.
+
+Message and tool-input previews are bounded to 2,000 characters per field; longer
+previews are marked as truncated. Model internals, reasoning, tool results, and
+full conversation history are not displayed. **The office now contains local
+conversation excerpts and command text**; leave it bound to `127.0.0.1` and do not
+expose it to an untrusted network. Nothing is uploaded to an external service.
+
+Named delegated workers appear as teammates with their own seats and details;
+unnamed helpers appear as sub-agent characters near their parent. Background work
+survives the parent's completed turn and disappears when Copilot reports completion.
+Nested child events are routed independently rather than shown as the parent's tools.
+Some CLI integrations buffer child events until completion: in that case the office
+shows the known task and running state, not fabricated live tool activity.
+
+Context gauges use Copilot's `session.usage_info` occupancy/window values or
+reported token usage for the matching main model and its declared context window.
+Cached prompt tokens are counted once; billing totals and helper-model calls are
+never used as context occupancy. **Some CLI sessions do not write these metrics**
+(including some hosted-model paths). They explicitly show "not reported" instead
+of a guessed percentage. Reported compaction/model changes reset stale readings.
+
+### Native terminals (Windows browser office)
+
+The PowerShell launcher enables **+ Agent**, **Open session in terminal**, and
+**Focus terminal** by default. When launching `node dist/cli.js` directly, pass
+`--terminal-controls` to enable them:
+
+```powershell
+node .\dist\cli.js --copilot --watch-all-sessions --terminal-controls --no-reuse
+```
+
+Open the **private `?token=` URL printed by the launcher** to use these controls.
+The bare URL is still a read-only viewer. Every launch requires an explicit click,
+starts interactive Copilot without an automatic prompt, and never enables
+permission bypass. Opening an existing session uses Copilot's `--session-id`
+resume/attach behavior. Native focus is limited to terminal windows opened by
+this running office that Windows exposes as focusable; arbitrary pre-existing
+Windows Terminal tabs cannot be reliably selected. Unsupported focus is reported
+as an error rather than opening another session silently. Use the VS Code adapter
+for exact focus of terminals it owns.
+
+Dismissing a character hides it from the office; it does not terminate an external
+Copilot process or approve tools. The integration targets local Copilot **CLI**
+sessions, not VS Code Copilot Chat, cloud sessions, or another machine. It reads
+Copilot's current on-disk format; format changes may require an update.
+The upstream Claude integration remains available when `--copilot` is omitted.
+
+### VS Code Copilot office
+
+Build an installable VSIX from this checkout:
+
+```sh
+npm exec --yes --package @vscode/vsce -- vsce package --no-dependencies --out pixel-agents-copilot.vsix
+code --install-extension pixel-agents-copilot.vsix
+```
+
+Then open
+`pixel-agents-copilot.code-workspace` for the Copilot office with cross-directory
+visibility. The workspace changes only its own Pixel Agents settings, not your
+global editor configuration.
+
+In any other window, run **Pixel Agents: Start Copilot Office** from the command
+palette. That explicit command selects Copilot globally and reloads the window;
+the default provider remains Claude until selected. Alternatively set
+`pixel-agents.agentProvider` to `copilot` and reload. **+ Agent** launches an
+interactive Copilot CLI terminal in the selected workspace folder. Characters
+launched by this adapter focus their exact terminal when clicked. Externally
+started sessions show details without being silently relaunched; use **Open session
+in terminal** to attach explicitly. No Claude hooks are installed in Copilot mode.
+
+VS Code must be 1.105 or newer. Copilot CLI must be installed, on the terminal's
+PATH, and authenticated. Copilot Chat's own conversation history is a separate
+integration and is not read by this CLI provider.
+
+### Optional layout and local customizations
+
+The [generic four-room studio](examples/layouts/README.md) uses bundled furniture
+and neutral room names. Import it explicitly and map your own folders through
+**Layout > Areas**. It is not installed automatically.
+
+Personal layouts, folder mappings, fixed-path Skills and layout-install helpers
+are ignored by Git in this checkout. They are not runtime/build dependencies.
+Use `local/` for additional private variants. The active office configuration,
+seats, tokens and session data remain in your home directory; do not copy them
+into source control. Screenshots can contain private conversation excerpts.
+
+### Source fork versus package publication
+
+The package name, publisher and original release workflows still identify upstream
+`pixel-agents` / `pablodelucca.pixel-agents`. Installing this VSIX replaces an
+extension with that same ID. **Do not treat the upstream publishing workflow as
+ready to publish a separate product.** Before enabling release publishing, select
+your own npm scope/extension publisher and configure the workflow accordingly.
+Keep the upstream license and asset credits.
+
+## Upstream project
+
+The following sections describe the original Claude integration and distribution.
 
 It ships in two forms from the same codebase:
 

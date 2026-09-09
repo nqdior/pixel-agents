@@ -26,6 +26,7 @@ interface SettingsModalProps {
    *  still pending, so binding the checkbox to it renders "on" over an empty
    *  ~/.claude/settings.json. */
   hooksInstalled: boolean;
+  hooksAvailable: boolean;
   onToggleHooksEnabled: () => void;
   /** Whether the areas overlay is rendered outside of the Areas edit tool. */
   showAreas: boolean;
@@ -51,6 +52,7 @@ export function SettingsModal({
   watchAllSessions,
   onToggleWatchAllSessions,
   hooksInstalled,
+  hooksAvailable,
   onToggleHooksEnabled,
   showAreas,
   onToggleShowAreas,
@@ -63,7 +65,12 @@ export function SettingsModal({
   const [assetDirDraft, setAssetDirDraft] = useState('');
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Settings">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Settings"
+      className="w-[calc(100vw-2rem)] max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto"
+    >
       {/* Open Sessions Folder opens an OS file manager — impossible in the browser. */}
       {!isBrowserRuntime && (
         <MenuItem
@@ -184,11 +191,17 @@ export function SettingsModal({
         checked={watchAllSessions}
         onChange={onToggleWatchAllSessions}
       />
-      <Checkbox
-        label="Instant Detection (Hooks)"
-        checked={hooksInstalled}
-        onChange={onToggleHooksEnabled}
-      />
+      {hooksAvailable ? (
+        <Checkbox
+          label="Instant Detection (Hooks)"
+          checked={hooksInstalled}
+          onChange={onToggleHooksEnabled}
+        />
+      ) : (
+        <div className="py-4 px-10 text-xs text-text">
+          Copilot CLI: read-only session monitoring. No hooks required.
+        </div>
+      )}
       <Checkbox
         label="Always Show Labels"
         checked={alwaysShowOverlay}

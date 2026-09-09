@@ -1,0 +1,8 @@
+{
+  "folders": [{ "path": "." }],
+  "settings": {
+    "pixel-agents.agentProvider": "copilot",
+    "pixel-agents.autoShowPanel": true,
+    "pixel-agents.watchAllCopilotSessions": true
+  }
+}

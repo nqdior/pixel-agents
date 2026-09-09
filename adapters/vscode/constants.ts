@@ -40,3 +40,7 @@ export const CONFIG_KEY_AUTO_SPAWN_AGENT = 'pixel-agents.autoSpawnAgent';
 export const VIEW_ID = 'pixel-agents.panelView';
 export const COMMAND_SHOW_PANEL = 'pixel-agents.showPanel';
 export const COMMAND_EXPORT_DEFAULT_LAYOUT = 'pixel-agents.exportDefaultLayout';
+export const CONFIG_KEY_AGENT_PROVIDER = 'pixel-agents.agentProvider';
+export const COMMAND_START_COPILOT = 'pixel-agents.startCopilotOffice';
+export const COPILOT_TERMINAL_PREFIX = 'Pixel Copilot';
+export const CONFIG_KEY_WATCH_ALL_COPILOT = 'pixel-agents.watchAllCopilotSessions';

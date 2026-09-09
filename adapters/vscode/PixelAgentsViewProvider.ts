@@ -1047,7 +1047,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
-function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const distPath = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
   const indexPath = vscode.Uri.joinPath(distPath, 'index.html').fsPath;
 

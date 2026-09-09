@@ -119,6 +119,25 @@ describe('parseArgs', () => {
   it('parses --host', () => {
     expect(parseArgs(['--host', '0.0.0.0']).host).toBe('0.0.0.0');
   });
+
+  it('opts into read-only Copilot and cross-directory monitoring explicitly', () => {
+    expect(parseArgs([]).copilot).toBeUndefined();
+    expect(parseArgs(['--copilot', '--watch-all-sessions'])).toMatchObject({
+      copilot: true,
+      watchAllSessions: true,
+    });
+
+    it('enables terminal actions only with an explicit Copilot option', () => {
+      expect(parseArgs(['--copilot']).terminalControls).toBeUndefined();
+      expect(parseArgs(['--copilot', '--terminal-controls']).terminalControls).toBe(true);
+      expect(() => parseArgs(['--terminal-controls'])).toThrow(CliArgsError);
+    });
+
+    it('lets the shared launcher own compatible-server reuse', () => {
+      expect(parseArgs([]).noReuse).toBeUndefined();
+      expect(parseArgs(['--copilot', '--no-reuse']).noReuse).toBe(true);
+    });
+  });
 });
 
 // The TTY consent prompt is gone: first-run consent is asked in the app, as

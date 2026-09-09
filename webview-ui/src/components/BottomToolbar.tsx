@@ -13,6 +13,8 @@ interface BottomToolbarProps {
   isSettingsOpen: boolean;
   onToggleSettings: () => void;
   workspaceFolders: WorkspaceFolder[];
+  canLaunchAgent: boolean;
+  canBypassPermissions: boolean;
 }
 
 export function BottomToolbar({
@@ -22,6 +24,8 @@ export function BottomToolbar({
   isSettingsOpen,
   onToggleSettings,
   workspaceFolders,
+  canLaunchAgent,
+  canBypassPermissions,
 }: BottomToolbarProps) {
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
@@ -53,7 +57,7 @@ export function BottomToolbar({
   };
 
   const handleAgentHover = () => {
-    if (!isFolderPickerOpen) {
+    if (canBypassPermissions && !isFolderPickerOpen) {
       setIsBypassMenuOpen(true);
     }
   };
@@ -84,7 +88,7 @@ export function BottomToolbar({
   return (
     <div className="absolute bottom-10 left-10 z-20 flex items-center gap-4 pixel-panel p-4">
       {/* Hide + Agent in standalone browser mode (no terminal to interact with) */}
-      {!isBrowserRuntime && (
+      {(!isBrowserRuntime || canLaunchAgent) && (
         <div
           ref={folderPickerRef}
           className="relative"
@@ -102,7 +106,7 @@ export function BottomToolbar({
           >
             + Agent
           </Button>
-          <Dropdown isOpen={isBypassMenuOpen}>
+          <Dropdown isOpen={canBypassPermissions && isBypassMenuOpen}>
             <DropdownItem onClick={() => handleBypassSelect(true)}>
               Skip permissions mode <span className="text-2xs text-warning">⚠</span>
             </DropdownItem>

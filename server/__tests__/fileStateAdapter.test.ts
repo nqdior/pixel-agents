@@ -114,6 +114,28 @@ describe('FileStateAdapter', () => {
     expect(adapter.loadSeats()).toEqual({});
   });
 
+  it('keeps the Copilot office from overwriting Claude agents and seats', () => {
+    const claude = new FileStateAdapter({ namespace: 'standalone' });
+    const copilot = new FileStateAdapter({ namespace: 'standalone', stateNamespace: 'copilot' });
+    const agents: PersistedAgent[] = [
+      {
+        id: 1,
+        sessionId: 'claude-session',
+        terminalName: '',
+        isExternal: true,
+        jsonlFile: path.join(tempHome, 'claude.jsonl'),
+        projectDir: tempHome,
+      },
+    ];
+    claude.saveAgents(agents);
+    claude.saveSeats({ '1': { palette: 3, seatId: 'claude-chair' } });
+    copilot.saveAgents([]);
+    copilot.saveSeats({ '1': { palette: 0, seatId: 'copilot-chair' } });
+    expect(claude.loadAgents()).toEqual(agents);
+    expect(claude.loadSeats()).toEqual({ '1': { palette: 3, seatId: 'claude-chair' } });
+    expect(copilot.loadSeats()).toEqual({ '1': { palette: 0, seatId: 'copilot-chair' } });
+  });
+
   it('round-trips agents to the namespace-specific state file', () => {
     const adapter = new FileStateAdapter({ namespace: 'standalone' });
     const agents: PersistedAgent[] = [

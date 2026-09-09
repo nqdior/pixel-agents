@@ -12,10 +12,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import type { FileSessionProvider } from '../../core/src/fileProvider.js';
 import type { HookProvider } from '../../core/src/provider.js';
 import type { AgentStateStore } from './agentStateStore.js';
 import { DEFAULT_MAX_CONTEXT_TOKENS } from './constants.js';
 import { DismissalTracker } from './dismissalTracker.js';
+import { FileProviderRuntime } from './fileProviderRuntime.js';
 import {
   adoptExternalSessionFromHook,
   ensureProjectScan,
@@ -84,11 +86,15 @@ export class AgentRuntime {
   readonly subagentWatch: SubagentWatch;
   private hookEventHandler: HookEventHandler;
   private lifecycleCallbacks: RuntimeLifecycleCallbacks = {};
+  readonly hookProviders: readonly HookProvider[];
+  private readonly fileProviders = new Map<string, FileProviderRuntime>();
 
   constructor(
     private readonly store: AgentStateStore,
     provider: HookProvider,
+    options: { hookProviders?: readonly HookProvider[] } = {},
   ) {
+    this.hookProviders = options.hookProviders ?? [provider];
     // Wire module-level dependencies
     setDismissalTracker(this.dismissalTracker);
     setHookProvider(provider);
@@ -289,7 +295,42 @@ export class AgentRuntime {
 
   /** Route an incoming hook event to the appropriate agent. */
   handleHookEvent(providerId: string, event: Record<string, unknown>): void {
+    if (!this.hookProviders.some((provider) => provider.id === providerId)) return;
     this.hookEventHandler.handleEvent(providerId, event as HookEvent);
+  }
+
+  getProviderCapabilities(): Record<string, unknown> {
+    return {
+      type: 'providerCapabilities',
+      readingTools: [
+        ...new Set([
+          ...this.hookProviders.flatMap((provider) => [...provider.readingTools]),
+          ...[...this.fileProviders.values()].flatMap((provider) => [...provider.readingTools]),
+        ]),
+      ],
+      subagentToolNames: [
+        ...new Set(this.hookProviders.flatMap((provider) => [...provider.subagentToolNames])),
+      ],
+      hookProviderIds: this.hookProviders.map((provider) => provider.id),
+    };
+  }
+
+  async startFileProvider(
+    provider: FileSessionProvider,
+    workspacePaths: readonly string[],
+  ): Promise<void> {
+    if (this.fileProviders.has(provider.id)) return;
+    const monitor = new FileProviderRuntime({
+      store: this.store,
+      provider,
+      workspacePaths,
+      watchAllSessions: this.watchAllSessions,
+      dismissals: this.dismissalTracker,
+      removeAgent: (id) => this.removeAgent(id),
+      onReadingToolsChanged: () => this.store.broadcast(this.getProviderCapabilities()),
+    });
+    this.fileProviders.set(provider.id, monitor);
+    await monitor.start();
   }
 
   /** Register an agent with the hook event handler for session->agent mapping. */
@@ -458,6 +499,7 @@ export class AgentRuntime {
    * terminal agents via vscode.window.terminals.
    */
   restoreExternalAgents(): void {
+    if (this.hookProviders.length === 0) return;
     const adapter = this.store.getAdapter();
     if (!adapter) return;
     const persisted = adapter.loadAgents();
@@ -558,6 +600,8 @@ export class AgentRuntime {
 
   /** Clean up all scanners, timers, and agents. Called on shutdown. */
   dispose(): void {
+    for (const provider of this.fileProviders.values()) provider.dispose();
+    this.fileProviders.clear();
     this.hookEventHandler.dispose();
     this.subagentWatch.dispose();
 

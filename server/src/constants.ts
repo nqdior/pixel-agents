@@ -2,6 +2,8 @@
 export const JSONL_POLL_INTERVAL_MS = 1000;
 export const FILE_WATCHER_POLL_INTERVAL_MS = 500;
 export const PROJECT_SCAN_INTERVAL_MS = 1000;
+export const FILE_PROVIDER_SCAN_INTERVAL_MS = 1000;
+export const FILE_PROVIDER_THINKING_TOOL_ID = 'pixel-agents:thinking';
 
 // ── Heuristic Agent Status Detection ────────────────────────
 // These timers are the fallback when CLI hooks are not active

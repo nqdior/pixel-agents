@@ -14,6 +14,8 @@ export type ServerMessage =
   | AgentSelected
   | ExistingAgents
   | AgentStatus
+  | AgentDetails
+  | TerminalActionResult
   | AgentToolStart
   | AgentToolDone
   | AgentToolsClear
@@ -44,6 +46,7 @@ export type ClientMessage =
   | WebviewReady
   | LaunchAgent
   | FocusAgent
+  | OpenAgentTerminal
   | CloseAgent
   | SaveAgentSeats
   | SaveLayout
@@ -68,6 +71,9 @@ export interface ProviderCapabilities {
   type: 'providerCapabilities';
   readingTools: string[];
   subagentToolNames: string[];
+  hookProviderIds?: string[];
+  canLaunchAgent?: boolean;
+  terminalControls?: boolean;
 }
 
 export interface AgentCreated {
@@ -112,6 +118,56 @@ export interface AgentStatus {
 
 export type AgentActivityStatus = 'active' | 'waiting';
 
+export interface AgentDetails {
+  type: 'agentDetails';
+  id: number;
+  details: SessionDetails;
+}
+
+export interface SessionDetails {
+  sessionId: string;
+  cwd: string;
+  title?: string;
+  status: SessionActivityStatus;
+  tools: SessionTool[];
+  recentTools: SessionTool[];
+  lastActivityAt: number;
+  latestRequest?: SessionMessage;
+  latestResponse?: SessionMessage;
+  context?: SessionContextUsage;
+}
+
+export type SessionActivityStatus = 'active' | 'done' | 'input' | 'permission';
+
+export interface SessionTool {
+  id: string;
+  name: string;
+  status: string;
+  isReading: boolean;
+  details?: string;
+  outcome?: SessionToolOutcome;
+}
+
+export type SessionToolOutcome = 'done' | 'error';
+
+export interface SessionMessage {
+  content: string;
+  timestamp: string;
+  truncated: boolean;
+}
+
+export interface SessionContextUsage {
+  usedTokens: number;
+  maxTokens: number;
+  model?: string;
+}
+
+export interface TerminalActionResult {
+  type: 'terminalActionResult';
+  success: boolean;
+  message: string;
+}
+
 export interface AgentToolStart {
   type: 'agentToolStart';
   id: number;
@@ -150,6 +206,8 @@ export interface SubagentToolStart {
   parentToolId: string;
   toolId: string;
   status: string;
+  label?: string;
+  toolName?: string;
 }
 
 export interface SubagentToolDone {
@@ -327,6 +385,11 @@ export interface LaunchAgent {
 
 export interface FocusAgent {
   type: 'focusAgent';
+  id: number;
+}
+
+export interface OpenAgentTerminal {
+  type: 'openAgentTerminal';
   id: number;
 }
 
