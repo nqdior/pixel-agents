@@ -1,5 +1,9 @@
 # Pixel Agents for GitHub Copilot CLI
 
+<p align="center">
+  <img src="docs/assets/banner-copilot.png" alt="Pixel Agents with GitHub Copilot CLI integration" width="728">
+</p>
+
 An unofficial fork of [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents)
 with GitHub Copilot CLI integration.
 
@@ -193,6 +197,11 @@ extension with that same ID. **Do not treat the upstream publishing workflow as
 ready to publish a separate product.** Before enabling release publishing, select
 your own npm scope/extension publisher and configure the workflow accordingly.
 Keep the upstream license and asset credits.
+
+The Copilot banner combines the original Pixel Agents artwork with the
+[Copilot icon from Primer Octicons](https://github.com/primer/octicons/blob/main/icons/copilot-24.svg)
+([MIT license](docs/assets/OCTICONS-LICENSE)). The original banner is unchanged.
+Regenerate the composite with `node scripts/generate-copilot-banner.cjs`.
 
 ## Upstream project
 
