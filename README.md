@@ -1,33 +1,22 @@
-<h1 align="center">
-  <a href="https://github.com/pixel-agents-hq/pixel-agents/discussions">
-    <img src="webview-ui/public/banner.png" alt="Pixel Agents">
-  </a>
-</h1>
+# Pixel Agents for GitHub Copilot CLI
 
-<h2 align="center">The most playful way to orchestrate your agents</h2>
+An unofficial fork of [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents)
+with GitHub Copilot CLI integration.
 
-> **Copilot-enabled source fork:** the Marketplace, npm and community links below
-> refer to the upstream Pixel Agents project, not a published release of this fork.
-> Build this checkout to use the Copilot integration.
+View your Copilot CLI sessions as animated characters in a pixel-art office,
+in a browser or inside VS Code. This fork adds cross-directory session discovery,
+live tool activity, recent request and response previews, and separate characters
+for delegated agents. Context usage is displayed when reported by the CLI.
+The original office renderer, layout editor, furniture and pets are retained.
 
-<div align="center">
+**Build this fork from source to use the Copilot integration.** The upstream npm
+package and Marketplace extension are not releases of this fork. See the
+[compatibility notes](#compatibility-and-limits) for platform support; native
+browser terminal controls are Windows-only.
+This is not an official GitHub or Microsoft release.
 
-[![version](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Fversion.json)](https://github.com/pixel-agents-hq/pixel-agents/releases)
-[![marketplaces](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Finstalls.json)](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents)
-[![npm downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Fnpm-downloads.json)](https://www.npmjs.com/package/pixel-agents)
-[![stars](https://img.shields.io/github/stars/pixel-agents-hq/pixel-agents?logo=github&color=0183ff&style=flat)](https://github.com/pixel-agents-hq/pixel-agents/stargazers)
-[![license](https://img.shields.io/github/license/pixel-agents-hq/pixel-agents?color=0183ff&style=flat)](https://github.com/pixel-agents-hq/pixel-agents/blob/main/LICENSE)
-[![discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white&style=flat)](https://discord.gg/Yk7jXebv9H)
-
-</div>
-
-<div align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents">🛒 VS Code Marketplace</a> • <a href="https://open-vsx.org/extension/pablodelucca/pixel-agents">🛒 Open VSX</a> • <a href="https://www.npmjs.com/package/pixel-agents">📦 npm</a> • <a href="https://discord.gg/Yk7jXebv9H">👾 Discord</a> • <a href="https://github.com/pixel-agents-hq/pixel-agents/discussions">💬 Discussions</a> • <a href="CONTRIBUTING.md">🤝 Contributing</a> • <a href="CHANGELOG.md">📋 Changelog</a>
-</div>
-
-<br/>
-
-Pixel Agents turns the AI coding agents running in your terminals into animated pixel-art characters working in a tiny office. They walk to their desks, sit down, type when they're editing files, read when they're searching, and flag you visually when they're stuck waiting for input.
+[Build and run](#build-and-run) · [VS Code setup](#vs-code-copilot-office) ·
+[Compatibility](#compatibility-and-limits) · [Upstream project](#upstream-project)
 
 ## GitHub Copilot CLI edition
 
@@ -207,7 +196,26 @@ Keep the upstream license and asset credits.
 
 ## Upstream project
 
-The following sections describe the original Claude integration and distribution.
+The following sections and links describe the original Pixel Agents project,
+its Claude integration and its releases, not this fork's distribution.
+
+<p align="center">
+  <a href="https://github.com/pixel-agents-hq/pixel-agents">
+    <img src="webview-ui/public/banner.png" alt="Original Pixel Agents project">
+  </a>
+</p>
+
+[Upstream releases](https://github.com/pixel-agents-hq/pixel-agents/releases) ·
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents) ·
+[Open VSX](https://open-vsx.org/extension/pablodelucca/pixel-agents) ·
+[npm](https://www.npmjs.com/package/pixel-agents) ·
+[Discussions](https://github.com/pixel-agents-hq/pixel-agents/discussions) ·
+[Discord](https://discord.gg/Yk7jXebv9H)
+
+Pixel Agents turns the AI coding agents running in your terminals into animated
+pixel-art characters working in a tiny office. They walk to their desks, sit down,
+type when they're editing files, read when they're searching, and flag you visually
+when they're stuck waiting for input.
 
 It ships in two forms from the same codebase:
 
